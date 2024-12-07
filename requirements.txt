@@ -1,0 +1,14 @@
+aiohttp>=3.8.0
+beautifulsoup4>=4.9.3
+markdownify>=0.11.0
+nodriver>=0.1.5
+PyYAML>=6.0
+Pillow>=9.0.0  # Optional, for image optimization
+python-dateutil>=2.8.2
+typing-extensions>=4.0.0
+mermaid-markdown>=0.1.1  # For documentation diagrams
+pytest>=7.0.0  # For testing
+flake8>=4.0.0  # For linting
+mypy>=1.0.0  # For type checking
+black>=22.0.0  # For code formatting
+keyboard
