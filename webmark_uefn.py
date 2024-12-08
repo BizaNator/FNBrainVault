@@ -20,13 +20,15 @@ from combine_docs import DocumentProcessor
 from book_formatter import BookFormatter
 from markdown_utils import MarkdownProcessor
 from markdownify import markdownify as md
+from config_manager import ConfigManager
 
 # Configuration
-BASE_URL = "https://dev.epicgames.com/documentation/en-us/uefn/unreal-editor-for-fortnite-documentation"
-OUTPUT_DIR = "./downloaded_docs"
-IMAGES_DIR = "./downloaded_docs/images"
-MAX_CONCURRENT_DOWNLOADS = 5
-RATE_LIMIT_DELAY = 0.5  # seconds between requests
+#BASE_URL = "https://dev.epicgames.com/documentation/en-us/uefn/unreal-editor-for-fortnite-documentation"
+#BASE_URL = "https://dev.epicgames.com/documentation/en-us/fortnite-creative/fortnite-creative-documentation"
+OUTPUT_DIR = ConfigManager().get_setting("output_dir")
+#IMAGES_DIR = "./downloaded_docs/images"
+#MAX_CONCURRENT_DOWNLOADS = 5
+#RATE_LIMIT_DELAY = 0.5  # seconds between requests
 LOG_FILE = "webmark_uefn.log"
 
 # Setup logging
@@ -75,10 +77,11 @@ class DownloadError:
     timestamp: datetime = field(default_factory=datetime.now)
 
 class DownloadManager:
-    def __init__(self, output_dir: str, max_retries: int = 3, retry_delay: int = 5):
-        self.output_dir = output_dir
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
+    def __init__(self: str = None):
+        # Use provided output_dir or get from config
+        self.output_dir = ConfigManager().get_setting("output_dir")
+        self.max_retries = ConfigManager().get_setting("retry_attempts")
+        self.retry_delay = ConfigManager().get_setting("rate_limit_delay")
         self.failed_downloads: Dict[str, Tuple[int, str]] = {}
         self.retry_queue: List[str] = []
         self.completed_urls: set[str] = set()
@@ -87,13 +90,13 @@ class DownloadManager:
         self.download_times: List[float] = []
         self.failed_urls: set[str] = set()
         self.status_map: Dict[str, DownloadStatus] = {}
-        self.status_file = Path(output_dir) / '.download_status.json'
+        self.status_file = Path(self.output_dir) / '.download_status.json'
         self.recursion_errors: Dict[str, DownloadError] = {}
-        self.max_recursion_retries = 2
-        self.markdown_processor = MarkdownProcessor(output_dir)
+        self.max_recursion_retries = ConfigManager().get_setting("max_recursion_retries")
+        self.markdown_processor = MarkdownProcessor(self.output_dir)
         
         # Load previous states
-        if state := DownloadState.load(output_dir):
+        if state := DownloadState.load(self.output_dir):
             self.completed_urls = state.completed_urls
             self.failed_downloads = state.failed_downloads
             self.retry_queue = state.retry_queue
@@ -474,14 +477,15 @@ async def extract_content(page, url, session, manager):
     try:
         print(f"Navigating to: {url}")
         await page.get(url)
-        await page.sleep(5)  # Wait for content to load
+        await asyncio.sleep(2)  # Changed from page.sleep to asyncio.sleep
         
-        # Get title using JavaScript
-        title_script = """
-        document.title || document.querySelector('h1')?.textContent || 
-        document.querySelector('title')?.textContent || 'Untitled Page'
-        """
-        title = await page.evaluate(title_script)
+        # Get title
+        title = await page.evaluate("""
+            document.title || 
+            document.querySelector('h1')?.textContent || 
+            document.querySelector('title')?.textContent || 
+            'Untitled Page'
+        """)
         
         # Try to get content using JavaScript
         script = """
@@ -520,7 +524,7 @@ async def extract_content(page, url, session, manager):
         print(f"Error extracting content from {url}: {str(e)}")
         return None, None
 
-async def get_links_and_download(page, session, manager, base_url=BASE_URL, processed_urls=None, force_download=False):
+async def get_links_and_download(page, session, manager, base_url=None, processed_urls=None, force_download=False):
     """Recursively fetch all links and download content simultaneously."""
     if processed_urls is None:
         processed_urls = set()
@@ -533,7 +537,45 @@ async def get_links_and_download(page, session, manager, base_url=BASE_URL, proc
     try:
         print(f"Processing: {base_url}")
         await page.get(base_url)
-        await page.sleep(2)  # Reduced sleep time
+        await page.sleep(2)
+        
+        # Extract category information from the table of contents or breadcrumbs
+        category_script = """
+        () => {
+            // First try to get category from TOC
+            const tocElement = document.querySelector('[slot="documentation-toc"]');
+            if (tocElement) {
+                const parentLinks = tocElement.querySelectorAll('a.contents-table-link.is-parent');
+                const currentPath = window.location.pathname;
+                
+                for (const link of parentLinks) {
+                    const href = link.getAttribute('href');
+                    if (currentPath.startsWith(href)) {
+                        return {
+                            category: link.textContent.trim(),
+                            href: href
+                        };
+                    }
+                }
+            }
+            
+            // Fallback to breadcrumbs
+            const breadcrumbs = document.querySelectorAll('.breadcrumb-item');
+            if (breadcrumbs.length) {
+                // Get the last non-active breadcrumb which should be the parent category
+                const lastBreadcrumb = Array.from(breadcrumbs).pop();
+                if (lastBreadcrumb) {
+                    return {
+                        category: lastBreadcrumb.getAttribute('title'),
+                        href: lastBreadcrumb.getAttribute('href')
+                    };
+                }
+            }
+            
+            return null;
+        }
+        """
+        category_info = await page.evaluate(category_script)
         
         # Download current page while we look for more links
         parsed_url = urlparse(base_url)
@@ -549,23 +591,40 @@ async def get_links_and_download(page, session, manager, base_url=BASE_URL, proc
         if force_download or not os.path.exists(filepath):
             content, title = await extract_content(page, base_url, session, manager)
             if content and title:
+                # Add category to frontmatter if available
+                if category_info:
+                    content = f"""---
+title: {title}
+category: {category_info['category']}
+category_url: {category_info['href']}
+---
+
+{content}"""
+                else:
+                    content = f"""---
+title: {title}
+---
+
+{content}"""
+                
                 # Save the file using markdown processor
                 filepath = manager.markdown_processor.save_content(base_url, content, title)
                 print(f"Downloaded: {filepath}")
         
-        # Get links from current page
-        script = """
+        # Update link filtering based on selected documentation type
+        doc_type = parsed_url.path.split('/')[4]  # Extract doc type from URL
+        link_filter = f"""
         Array.from(document.getElementsByTagName('a'))
             .map(a => a.href)
             .filter(href => 
-                (href.includes('/documentation/en-us/uefn') || 
-                 href.includes('/documentation/en-us/fortnite-creative')) &&
+                href.includes('/documentation/en-us/{doc_type}') &&
                 !href.includes('#') &&  // Exclude anchor links
                 !href.endsWith('.png') &&  // Exclude image links
                 !href.endsWith('.jpg')
             )
         """
-        hrefs = await page.evaluate(script)
+        
+        hrefs = await page.evaluate(link_filter)
         
         all_links = set(hrefs)
         child_links = set()
@@ -591,53 +650,105 @@ async def get_links_and_download(page, session, manager, base_url=BASE_URL, proc
         logging.error(f"Error processing {base_url}: {str(e)}")
         return []
 
-async def main(force_download: bool = False, download_images: bool = True):
-    """Main entry point for the script"""
-    start_time = time.time()
-    output_dir = "downloaded_docs"
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Initialize download manager with output directory
-    manager = DownloadManager(output_dir=output_dir)
-    
-    browser = None
-    async with aiohttp.ClientSession() as session:
+class WebMarkScraper:
+    def __init__(self, config_manager: ConfigManager):
+        self.config = config_manager
+        self.browser = None
+        self.session = None
+        self.manager = DownloadManager()
+        
+    async def initialize(self):
+        """Initialize browser and session"""
+        self.session = aiohttp.ClientSession()
         try:
             print("Starting browser...")
-            browser = await uc.start(
-                headless=False,
-                lang="en-US"
+            self.browser = await uc.start(
+                headless=self.config.get_setting("headless"),
+                lang=self.config.get_setting("browser_lang")
             )
-            
-            if not browser:
-                raise Exception("Failed to start browser")
-                
-            print("Getting initial page...")
-            page = await browser.get(BASE_URL)
-            
-            if not page:
-                raise Exception("Failed to get initial page")
-                
-            print("Getting links and downloading content...")
-            links = await get_links_and_download(page, session, manager, force_download=force_download)
-            print(f"Processed {len(links)} pages.")
-                    
-            # After initial downloads complete, try to retry failed ones
-            await manager.retry_failed_downloads(session, page)
-            
-            # Post-process downloads to add/verify chapter metadata
-            await manager.post_process_downloads(session, page)
-            
+            return True
         except Exception as e:
-            print(f"An error occurred in main: {str(e)}")
-        finally:
-            if browser:
-                print("Stopping browser...")
-                browser.stop()
-            print(f"\nAll pages saved to {OUTPUT_DIR}")
+            logging.error(f"Failed to start browser: {e}")
+            return False
+            
+    async def cleanup(self):
+        """Cleanup resources"""
+        if self.browser:
+            try:
+                await self.browser.stop()
+            except Exception as e:
+                logging.error(f"Error stopping browser: {e}")
+        
+        if self.session and not self.session.closed:
+            try:
+                await self.session.close()
+            except Exception as e:
+                logging.error(f"Error closing session: {e}")
+
+async def main(*, force_download=False, download_images=True, base_url=None, config_manager=None):
+    """Main entry point for the scraper
+    
+    Args:
+        force_download (bool): Force redownload of existing files
+        download_images (bool): Download images along with content
+        base_url (str, optional): Override default base URL
+        config_manager (ConfigManager, optional): Configuration manager instance
+    """
+    start_time = time.time()
+    
+    # Use provided config_manager or create new one
+    config = config_manager or ConfigManager()
+    
+    # Initialize scraper with configuration
+    scraper = WebMarkScraper(config)
+    
+    try:
+        # Initialize browser and session
+        if not await scraper.initialize():
+            raise Exception("Failed to initialize scraper")
+        
+        # Get output directory from config
+        output_dir = config.get_setting("output_dir")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Use provided base_url or get from config based on selected preset
+        scraper_url = base_url or config.get_setting("base_url")
+        if not scraper_url:
+            raise Exception("No base URL provided")
+            
+        print("Getting initial page...")
+        page = await scraper.browser.get(scraper_url)
+        
+        if not page:
+            raise Exception("Failed to get initial page")
+            
+        print("Getting links and downloading content...")
+        links = await get_links_and_download(
+            page, 
+            scraper.session, 
+            scraper.manager,
+            base_url=scraper_url,
+            force_download=force_download
+        )
+        print(f"Processed {len(links)} pages.")
+        
+        # After initial downloads complete, try to retry failed ones
+        await scraper.manager.retry_failed_downloads(scraper.session, page)
+        
+        # Post-process downloads to add/verify chapter metadata
+        await scraper.manager.post_process_downloads(scraper.session, page)
+        
+    except Exception as e:
+        print(f"An error occurred in main: {str(e)}")
+        logging.error(f"Scraping error: {str(e)}")
+    finally:
+        await scraper.cleanup()
+        if scraper.session and not scraper.session.closed:
+            await scraper.session.close()
+        print(f"\nAll pages saved to {output_dir}")
 
     # Format documentation after processing
-    formatter = BookFormatter(OUTPUT_DIR)
+    formatter = BookFormatter(output_dir)
     formatter.format_documentation()
     
     # Generate navigation and print versions using DocumentProcessor
@@ -645,26 +756,21 @@ async def main(force_download: bool = False, download_images: bool = True):
     doc_processor.generate_combined_book()
     
     # Generate basic index and print version through DownloadManager
-    manager.generate_index()
-    manager.generate_print_ready_version()
+    scraper.manager.generate_index()
+    scraper.manager.generate_print_ready_version()
     
     # Print statistics
     elapsed_time = time.time() - start_time
-    avg_download_time = sum(manager.download_times) / len(manager.download_times) if manager.download_times else 0
-    
-    logging.info(f"\nDownload Statistics:")
-    logging.info(f"Total time: {elapsed_time:.2f} seconds")
-    logging.info(f"Pages processed: {len(manager.processed_urls)}")
-    logging.info(f"Failed downloads: {len(manager.failed_urls)}")
-    logging.info(f"Average download time: {avg_download_time:.2f} seconds")
-    logging.info(f"Total chapters processed: {len(doc_processor.chapters)}")
-    logging.info(f"Total pages in combined book: {doc_processor.state['total_pages']}")
-    
-    if manager.failed_urls:
-        logging.warning("\nFailed URLs:")
-        for url in manager.failed_urls:
-            logging.warning(url)
+    avg_download_time = sum(scraper.manager.download_times) / len(scraper.manager.download_times) if scraper.manager.download_times else 0
+    print(f"\nScraping completed in {elapsed_time:.2f} seconds")
+    print(f"Average download time: {avg_download_time:.2f} seconds")
+    print(f"Pages processed: {len(scraper.manager.processed_urls)}")
+    print(f"Failed downloads: {len(scraper.manager.failed_urls)}")
 
 if __name__ == "__main__":
-    print("Starting script...")
-    uc.loop().run_until_complete(main(force_download=False, download_images=True))
+    try:
+        asyncio.run(main(force_download=False, download_images=True))
+    except KeyboardInterrupt:
+        print("\nScraping interrupted by user")
+    except Exception as e:
+        print(f"Fatal error: {str(e)}")

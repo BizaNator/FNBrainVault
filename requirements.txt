@@ -12,3 +12,4 @@ flake8>=4.0.0  # For linting
 mypy>=1.0.0  # For type checking
 black>=22.0.0  # For code formatting
 keyboard
+tk>=8.6  # For GUI components

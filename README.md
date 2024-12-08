@@ -1,26 +1,102 @@
-# WebMark Documentation Processor
+# FN Brain Vault - UEFN Fornite Documentation Archive
 
-A comprehensive documentation processing system that can scrape, process, and manage documentation from web sources, with support for both online and offline processing.
+Call me old school but I like to print stuff out and be able to search it locally.  Epic has recently changed their site and constantly been updating or taking information offline so this allows you to keep a local copy in markdown format.  I provide NO SUPPORT for this, this is just for our own internal documentation but if it can help you go for it.
 
-## Features
+## Purpose
+FN Brain Vault is a documentation preservation system for Unreal Editor for Fortnite (UEFN) that transforms Epic's online documentation into a locally maintained archive. The system scrapes and processes documentation from Epic's website, converting it into a searchable and printable format with annotation capabilities. Key features include:
 
-- Online documentation scraping with automatic retry and error handling
+- Local storage of documentation for offline access with full-text search functionality
+- Print-ready formatting with support for user annotations
+- Automatic processing of both online and offline content with retry handling
+- Documentation preservation and archival capabilities
+- Comprehensive content management including:
+- Online documentation scraping and error handling
 - Offline markdown processing and link fixing
-- Chapter number generation and organization
+- Chapter organization and numbering
 - Image downloading and optimization
 - Internal link processing and fixing
-- Combined book generation
-- Print-ready version generation
+- Combined book generation with print-ready output
 - Interactive processing menu
 - Progress tracking and state persistence
 - Markdown frontmatter management
-- Glossary handling
+- Glossary handling and cross-referencing
+
+
+
+
+
+## Dependencies
+- Python 3.8+
+- Required modules:
+  - aiohttp
+  - nodriver
+  - markdownify
+  - PyYAML
+  - Pillow (optional, for image optimization)
+
+## System Architecture
+```mermaid
+graph TD
+    A[DocForge UEFN] --> B[Document Processing]
+    A --> C[Content Management]
+    A --> D[Error Handling]
+    
+    B --> B1[HTML to Markdown]
+    B --> B2[Link Processing]
+    B --> B3[Image Handling]
+    
+    C --> C1[Local Storage]
+    C --> C2[State Management]
+    C --> C3[Version Control]
+    
+    D --> D1[Retry System]
+    D --> D2[Error Logging]
+    D --> D3[Recovery Procedures]
+    
+    subgraph Processing Flow
+        B1 --> C1
+        B2 --> C1
+        B3 --> C1
+    end
+    
+    subgraph Error Management
+        D1 --> B
+        D2 --> C2
+        D3 --> C2
+    end
+```
+
+## Core Components
+
+### ProcessingManager
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| process_docs | mode: str, start_chapter: Optional[int], end_chapter: Optional[int], online: bool | None | Main processing entry point |
+| process_chapters | mode: str, start_chapter: Optional[int], end_chapter: Optional[int] | None | Processes documentation chapters |
+| process_page | url: str, content: str, session | None | Processes individual pages |
+| show_menu | None | tuple[str, Optional[int], Optional[int], bool] | Displays interactive menu |
+
+### DownloadManager
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| download_with_retry | session, url: str | tuple[bool, str] | Downloads content with retry logic |
+| retry_specific_urls | urls: list, session, browser | None | Retries failed downloads |
+| post_process_downloads | session, browser | None | Post-processes downloaded content |
+
+### DocumentProcessor
+| Method | Parameters | Returns | Description |
+|--------|------------|---------|-------------|
+| process_chapter | chapter_num: int, file_path: Path | None | Processes individual chapters |
+| generate_combined_book | None | None | Generates combined documentation |
+| get_chapter_for_file | file_path: Path | Optional[int] | Determines chapter number |
+
+
 
 ## Project Structure
 
 ```
 .
-├── webmark_uefn.py        # Main online scraping script
+├── FnBrainVault_uefn.py        # Main online scraping script
 ├── markdown_utils.py      # Shared markdown processing utilities
 ├── fix_markdown_links.py  # Offline link fixing and chapter organization
 ├── process_existing.py    # Combined online/offline processing interface
@@ -32,8 +108,8 @@ A comprehensive documentation processing system that can scrape, process, and ma
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/webmark.git
-cd webmark
+git clone https://github.com/yourusername/FnBrainVault.git
+cd FnBrainVault
 ```
 
 2. Install dependencies:
@@ -45,7 +121,7 @@ pip install -r requirements.txt
 
 ### Interactive Processing Menu
 
-The easiest way to use WebMark is through the interactive menu:
+The easiest way to use FnBrainVault is through the interactive menu:
 
 ```bash
 python process_existing.py
@@ -163,7 +239,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Changelog
 
-### 2024-01-17
+### 2024-12-07
 - Reorganized code to reduce duplication
 - Added shared markdown processing utilities
 - Improved chapter number generation
