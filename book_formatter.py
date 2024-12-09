@@ -3,25 +3,29 @@ from pathlib import Path
 import re
 import yaml
 import logging
-from typing import Dict, List, Set, TYPE_CHECKING
+from typing import Dict, List, Set, TYPE_CHECKING, Tuple
 from datetime import datetime
+
+from image_processor import ImageProcessor
 
 if TYPE_CHECKING:
     from combine_docs import DocumentProcessor
 
 from doc_types import ChapterInfo
+from config_manager import ConfigManager
 
 class BookFormatter:
     def __init__(self, docs_dir: str):
         self.docs_dir = Path(docs_dir)
-        self.image_refs: Set[str] = set()
+        self.config = ConfigManager()
+        self.image_processor = ImageProcessor(docs_dir)
         self.internal_links: Dict[str, str] = {}
         self.code_blocks: List[Dict] = []
         
     def process_content(self, content: str, file_path: Path) -> str:
         """Process and format all content"""
-        # Process images first
-        content = self.process_images(content, file_path)
+        # Process images using ImageProcessor
+        content = self.image_processor.process_images(content, file_path)
         
         # Format code blocks
         content = self.format_code_blocks(content)
@@ -33,41 +37,14 @@ class BookFormatter:
         content = self.create_cross_references(content)
         
         return content
-
-    def process_images(self, content: str, file_path: Path) -> str:
-        """Process all image references and paths"""
-        def update_image_path(match):
-            alt_text = match.group(1) or "Image"
-            img_path = match.group(2)
-            
-            # Handle remote URLs (including cloudfront.net)
-            if img_path.startswith(('http://', 'https://')):
-                return match.group(0)  # Keep remote URLs unchanged
-                
-            # Handle relative paths
-            if 'images' in img_path:
-                img_filename = Path(img_path).name
-                local_ref = f"./images/{img_filename}"
-                self.image_refs.add((img_filename, alt_text))
-                return f"![{alt_text}]({local_ref})"
-            
-            return match.group(0)  # Keep unchanged if no match
-
-        # Process clickable images with remote URLs
-        content = re.sub(
-            r'\[!\[(.*?)\]\((.*?)\)\]\((https?://[^)]+)\)',
-            lambda m: m.group(0),  # Keep remote clickable images unchanged
-            content
-        )
         
-        # Process regular images
-        content = re.sub(
-            r'!\[(.*?)\]\(((?:\.\.\/)*(?:images\/)?[^)]+|https?:\/\/[^)]+)\)(?:\{[^}]*\})?',
-            update_image_path,
-            content
-        )
-        
-        return content
+    @property
+    def image_refs(self) -> Set[Tuple[str, str]]:
+        """Get all processed image references"""
+        return self.image_processor.get_image_references()
+
+
+
 
     def process_internal_links(self, content: str) -> str:
         """Process internal document links"""
@@ -295,6 +272,33 @@ class BookFormatter:
                 index.append(entry)
         
         return "\n".join(index)
+
+    def format_documentation(self) -> str:
+        """Format entire documentation set"""
+        # Create print_ready directory
+        print_ready_dir = self.docs_dir / 'print_ready'
+        print_ready_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Process all content
+        formatted_content = self.process_book()
+        
+        # Generate code index
+        code_index = self.generate_code_index()
+        if code_index:
+            formatted_content += f"\n\n# Code Index\n\n{code_index}"
+        
+        # Save formatted content
+        output_path = print_ready_dir / 'complete_documentation.md'
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write("---\n")
+            f.write("title: Complete Documentation\n")
+            f.write(f"date: {datetime.now().strftime('%Y-%m-%d')}\n")
+            f.write("version: 1.0\n")
+            f.write("---\n\n")
+            f.write(formatted_content)
+            
+        logging.info(f"Generated formatted documentation at {output_path}")
+        return formatted_content
 
 def format_documentation():
     """Main function to format documentation"""

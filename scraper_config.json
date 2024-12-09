@@ -1,0 +1,72 @@
+{
+  "presets": {
+    "documentation": {
+      "UEFN": {
+        "name": "UEFN Documentation",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/uefn/unreal-editor-for-fortnite-documentation",
+        "link_pattern": "/documentation/en-us/uefn",
+        "description": "Unreal Editor for Fortnite Documentation"
+      },
+      "Fortnite Creative": {
+        "name": "Fortnite Creative",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/fortnite-creative/fortnite-creative-documentation",
+        "link_pattern": "/documentation/en-us/fortnite-creative",
+        "description": "Fortnite Creative Documentation"
+      },
+      "Verse": {
+        "name": "Verse Programming",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/uefn/learn-programming-with-verse-in-unreal-editor-for-fortnite",
+        "link_pattern": "/documentation/en-us/uefn",
+        "description": "Verse Programming Language Documentation"
+      },
+      "VerseAPI": {
+        "name": "Verse API",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/uefn/verse-api",
+        "link_pattern": "/documentation/en-us/uefn/verse-api",
+        "description": "Verse API Reference"
+      },
+      "Unreal Engine": {
+        "name": "Unreal Engine",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/unreal-engine",
+        "link_pattern": "/documentation/en-us/unreal-engine",
+        "description": "Unreal Engine Documentation"
+      },
+      "MetaHuman": {
+        "name": "MetaHuman",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/metahuman",
+        "link_pattern": "/documentation/en-us/metahuman",
+        "description": "MetaHuman Documentation"
+      },
+      "Twinmotion": {
+        "name": "Twinmotion",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/twinmotion",
+        "link_pattern": "/documentation/en-us/twinmotion",
+        "description": "Twinmotion Documentation"
+      },
+      "RealityScan": {
+        "name": "RealityScan",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/reality-scan",
+        "link_pattern": "/documentation/en-us/reality-scan",
+        "description": "RealityScan Documentation"
+      },
+      "Fab": {
+        "name": "Fab",
+        "base_url": "https://dev.epicgames.com/documentation/en-us/fab",
+        "link_pattern": "/documentation/en-us/fab",
+        "description": "Fab Documentation"
+      }
+    }
+  },
+  "settings": {
+    "output_dir": "./downloaded_docs",
+    "images_dir": "./downloaded_docs/images",
+    "max_concurrent": 5,
+    "rate_limit_delay": 0.5,
+    "log_file": "webmark_uefn.log",
+    "headless": false,
+    "browser_lang": "en-US",
+    "retry_attempts": 3,
+    "timeout": 30,
+    "max_recursion_retries": 2
+  }
+}

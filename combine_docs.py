@@ -8,22 +8,36 @@ from typing import Dict, List, Optional, Tuple, Set
 from book_formatter import BookFormatter
 import re
 from doc_types import ChapterInfo
+from config_manager import ConfigManager
+from markdown_utils import MarkdownProcessor
+from image_processor import ImageProcessor
 
 logging.basicConfig(level=logging.INFO)
 
 class DocumentProcessor:
     def __init__(self, docs_dir: str):
-        self.docs_dir = docs_dir
+        #self.docs_dir = docs_dir
+        self.docs_dir = Path(docs_dir)
+        self.config = ConfigManager()
+        self.formatter = BookFormatter(docs_dir)
+        self.markdown_processor = MarkdownProcessor(docs_dir)
+        self.image_processor = ImageProcessor(docs_dir)
+        self.chapters = {}
+        #self.chapters: Dict[int, ChapterInfo] = self.load_chapters()
+        self.state = self.load_state()
         self.state_file = Path(docs_dir) / '.doc_state.json'
         self.chapter_file = Path(docs_dir) / '.chapter_index.json'
-        self.state = self.load_state()
-        self.chapters: Dict[int, ChapterInfo] = self.load_chapters()
         self.pages_per_sheet = 2
         self.estimated_lines_per_page = 45
-        self.formatter = BookFormatter(docs_dir)
-        self.image_refs: Set[Tuple[str, str, str]] = set()
+        #self.formatter = BookFormatter(docs_dir)
+        #self.image_refs: Set[Tuple[str, str, str]] = set()
         self.internal_links: Dict[str, str] = {}
         
+    @property
+    def image_refs(self) -> Set[Tuple[str, str]]:
+        """Get all processed image references"""
+        return self.image_processor.get_image_references()
+    
     def load_state(self):
         """Load previous processing state"""
         if self.state_file.exists():

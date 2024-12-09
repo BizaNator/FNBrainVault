@@ -8,13 +8,17 @@ from typing import Dict, List, Tuple, Optional
 from bs4 import BeautifulSoup
 from markdownify import markdownify as md
 from urllib.parse import urljoin, urlparse
+from config_manager import ConfigManager
+from image_processor import ImageProcessor
 
 class MarkdownProcessor:
     def __init__(self, output_dir: str):
         self.output_dir = output_dir
+        self.config = ConfigManager()
+        self.image_processor = ImageProcessor(output_dir)
         self.existing_chapters = {}
         self.processed_urls = set()
-        self.image_refs = set()
+        #self.image_refs = set()
 
     def clean_title(self, title: str) -> str:
         """Clean up title by removing common documentation suffixes."""
@@ -198,23 +202,26 @@ class MarkdownProcessor:
         return max(self.existing_chapters.values(), default=0) + 1
 
     async def process_images(self, content: str, session, base_url: str) -> str:
-        """Process images in content, downloading them and updating links"""
-        image_pattern = r'!\[(.*?)\]\((.*?)\)'
-        images = re.findall(image_pattern, content)
+        #"""Process images in content, downloading them and updating links"""
+        """Process all images in content"""
+        return await self.image_processor.process_images(content, session, base_url)
+
+        #image_pattern = r'!\[(.*?)\]\((.*?)\)'
+        #images = re.findall(image_pattern, content)
         
-        for alt_text, image_url in images:
-            image_path = await self.download_image(session, image_url, base_url)
-            if image_path:
-                relative_path = '../../../images/' + os.path.basename(image_path)
-                relative_path = relative_path.replace('\\', '/')
+        #for alt_text, image_url in images:
+        #    image_path = await self.download_image(session, image_url, base_url)
+        #    if image_path:
+        #        relative_path = '../../../images/' + os.path.basename(image_path)
+        #        relative_path = relative_path.replace('\\', '/')
                 
-                content = content.replace(
-                    f'![{alt_text}]({image_url})',
-                    f'![{alt_text}]({relative_path})'
-                )
-                self.image_refs.add(relative_path)
+        #        content = content.replace(
+        #            f'![{alt_text}]({image_url})',
+        #            f'![{alt_text}]({relative_path})'
+        #            )
+        #        self.image_refs.add(relative_path)
         
-        return content
+        #return content
 
     async def download_image(self, session, img_url: str, base_url: str) -> Optional[str]:
         """Download and optimize an image"""
@@ -336,3 +343,21 @@ class MarkdownProcessor:
             f.write(content)
         
         return filepath 
+    
+    @property
+    def image_refs(self) -> set[Tuple[str, str]]:
+        """Get all processed image references"""
+        return self.image_processor.get_image_references()
+
+    def process_content(self, content: str, file_path: Path) -> str:
+        """Process all markdown content"""
+        # Fix frontmatter
+        content, _ = self.fix_frontmatter_and_content(content, file_path)
+        
+        # Process images
+        content = self.process_images(content, file_path)
+        
+        # Process internal links
+        content = self.process_internal_links(content, "", str(file_path))
+        
+        return content

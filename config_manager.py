@@ -114,9 +114,12 @@ class ConfigManager:
         """Get all presets for a category"""
         return self.config["presets"].get(category, {})
     
-    def get_setting(self, key: str) -> any:
-        """Get a setting value"""
-        return self.config["settings"].get(key)
+    def get_setting(self, key: str, default: any = None) -> any:
+        """Get a setting value with optional default"""
+        try:
+            return self.config["settings"].get(key, default)
+        except (KeyError, TypeError):
+            return default
     
     def update_setting(self, key: str, value: any) -> None:
         """Update a setting value"""

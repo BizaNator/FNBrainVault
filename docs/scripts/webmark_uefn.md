@@ -123,11 +123,18 @@ class DownloadManager {
 
 ## Key Functions
 
-### main()
-**Purpose**: Entry point for the scraping process
+### scrape()
+**Purpose**: Wrapper for the main scraping function.
 **Parameters**:
-- force_download (bool): Force redownload of existing content
-- download_images (bool): Enable/disable image downloading
+- base_url (str): The base URL to start scraping from.
+- force_download (bool): Force redownload of existing content.
+- download_images (bool): Enable/disable image downloading.
+
+### main()
+**Purpose**: Entry point for the scraping process.
+**Parameters**:
+- force_download (bool): Force redownload of existing content.
+- download_images (bool): Enable/disable image downloading.
 
 ### get_links_and_download()
 **Purpose**: Recursively discovers and processes documentation pages

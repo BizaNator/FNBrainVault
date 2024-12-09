@@ -11,6 +11,7 @@ import asyncio
 import aiohttp
 from typing import Optional, List
 from datetime import datetime
+from image_processor import ImageProcessor
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,6 +40,7 @@ class ProcessingManager:
         self.state_file = Path(docs_dir) / '.processing_state.json'
         self.processor = DocumentProcessor(docs_dir)
         self.markdown_processor = MarkdownProcessor(docs_dir)
+        self.image_processor = ImageProcessor(docs_dir)
         self.paused = False
         self.current_chapter = 0
         self.load_state()
@@ -241,6 +243,34 @@ class ProcessingManager:
             logging.info("\nProcessing paused. Press 'p' to resume.")
         else:
             logging.info("\nProcessing resumed.")
+
+    async def process_file(self, file_path: Path):
+        """Process a single file"""
+        try:
+            content = file_path.read_text(encoding='utf-8')
+            
+            # Process images using ImageProcessor
+            if hasattr(self, 'session') and self.session:
+                # Online mode - use async processing
+                content = await self.image_processor.process_images(
+                    content,
+                    self.session,
+                    str(file_path)
+                )
+            else:
+                # Offline mode - use sync processing
+                content = self.image_processor.process_images(
+                    content,
+                    file_path
+                )
+            
+            # Continue with other processing
+            content = self.markdown_processor.process_content(content, file_path)
+            return content
+            
+        except Exception as e:
+            logging.error(f"Error processing file {file_path}: {str(e)}")
+            return None
 
 def main():
     manager = ProcessingManager()
